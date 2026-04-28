@@ -88,10 +88,15 @@ def VPG(policy, value_function):
             state = next_state
             if done:
                 break
-        
-        rewards = np.array(rewards)
-        R = torch.tensor([np.sum(rewards[i:]*(gamma**np.array(range(i, len(rewards))))) for i in range(len(rewards))])
+        values.append(0.0)
 
+        rewards = np.array(rewards, dtype=np.float32)                                                                            
+        values  = np.array(values,  dtype=np.float32)           # len T+1                                                        
+        states  = np.array(states,  dtype=np.float32)                                                                            
+        actions = np.array(actions, dtype=np.int64)
+        
+        
+        R = torch.tensor([np.sum(rewards[i:]*(gamma**np.array(range(i, len(rewards))))) for i in range(len(rewards))]).float()
         deltas = rewards + gamma * values[1:] - values[:-1]
         lam = 0.95
         A = np.zeros_like(deltas)
@@ -99,16 +104,26 @@ def VPG(policy, value_function):
         for t in reversed((range(len(deltas)))):
             accumulator = deltas[t] + gamma * lam * accumulator
             A[t] = accumulator
+        A = (A - A.mean()) / (A.std() + 1e-8)
+        A = torch.tensor(A, dtype=torch.float32)
+
         states = torch.tensor(states).float()
         actions = torch.tensor(actions)
 
         probabilities = current_policy(states)
         sampler = Categorical(probabilities)
         log_probabilities = sampler.log_prob(actions)
-        pseudo_loss = torch.sum(log_probabilities * R)
+        loss = -(log_probabilities * A).mean()
 
+        for i in range(80):
+            value_optimizer.zero_grad()
+            value_loss = ((current_value_function(states) - R) ** 2).mean()
+            value_loss.backward()
+            value_optimizer.step()
+        
         optimizer.zero_grad()
-        pseudo_loss.backward()
+        
+        loss.backward()
         optimizer.step()
 
         returns.append(np.sum(rewards))
