@@ -6,6 +6,7 @@
 #include <game/Game.h>
 #include "sim/PrintHelpers.h"
 
+#include <algorithm>
 #include <map>
 #include <array>
 #include <bitset>

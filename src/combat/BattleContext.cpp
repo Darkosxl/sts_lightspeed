@@ -2,6 +2,8 @@
 // Created by gamerpuppy on 7/4/2021.
 //
 
+#include <algorithm>
+
 #include "combat/BattleContext.h"
 #include "game/GameContext.h"
 #include "game/Game.h"

@@ -5,6 +5,7 @@
 #include "sim/search/BattleScumSearcher2.h"
 #include "sim/search/ExpertKnowledge.h"
 
+#include <algorithm>
 #include <utility>
 #include <string>
 #include <memory>
