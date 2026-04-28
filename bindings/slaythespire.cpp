@@ -12,9 +12,12 @@
 
 #include "sim/ConsoleSimulator.h"
 #include "sim/search/ScumSearchAgent2.h"
+#include "sim/search/Action.h"
 #include "sim/SimHelpers.h"
 #include "sim/PrintHelpers.h"
 #include "game/Game.h"
+#include "combat/BattleContext.h"
+#include "combat/InputState.h"
 
 #include "slaythespire.h"
 
@@ -144,6 +147,80 @@ PYBIND11_MODULE(slaythespire, m) {
         .def_property_readonly("is_starter_strike_or_defend", &Card::isStarterStrikeOrDefend)
         .def_property_readonly("rarity", &Card::getRarity)
         .def_property_readonly("type", &Card::getType);
+
+    pybind11::enum_<sts::search::ActionType>(m, "ActionType")
+        .value("CARD", sts::search::ActionType::CARD)
+        .value("POTION", sts::search::ActionType::POTION)
+        .value("SINGLE_CARD_SELECT", sts::search::ActionType::SINGLE_CARD_SELECT)
+        .value("MULTI_CARD_SELECT", sts::search::ActionType::MULTI_CARD_SELECT)
+        .value("END_TURN", sts::search::ActionType::END_TURN);
+
+    pybind11::enum_<InputState>(m, "InputState")
+        .value("EXECUTING_ACTIONS", InputState::EXECUTING_ACTIONS)
+        .value("PLAYER_NORMAL", InputState::PLAYER_NORMAL)
+        .value("CARD_SELECT", InputState::CARD_SELECT);
+
+    pybind11::enum_<Outcome>(m, "BattleOutcome")
+        .value("UNDECIDED", Outcome::UNDECIDED)
+        .value("PLAYER_VICTORY", Outcome::PLAYER_VICTORY)
+        .value("PLAYER_LOSS", Outcome::PLAYER_LOSS);
+
+    pybind11::class_<BattleContext> battleContext(m, "BattleContext");
+    battleContext.def(pybind11::init<>())
+        .def("init",
+             [](BattleContext &b, const GameContext &gc) { b.init(gc); },
+             "initialize battle from current encounter on the GameContext")
+        .def("init_with_encounter",
+             [](BattleContext &b, const GameContext &gc, MonsterEncounter enc) { b.init(gc, enc); },
+             "initialize battle with a specific MonsterEncounter")
+        .def("exit_battle",
+             [](const BattleContext &b, GameContext &gc) { b.exitBattle(gc); },
+             "applies post-combat effects (rewards, relic procs) back to the GameContext")
+        .def("execute_action",
+             [](BattleContext &b, sts::search::ActionType type, int idx1, int idx2) {
+                 sts::search::Action(type, idx1, idx2).execute(b);
+             },
+             "apply an action; advances combat until next player input is required")
+        .def("is_valid_action",
+             [](const BattleContext &b, sts::search::ActionType type, int idx1, int idx2) {
+                 return sts::search::Action(type, idx1, idx2).isValidAction(b);
+             },
+             "check whether the given action is legal in the current state")
+        .def_readonly("outcome", &BattleContext::outcome)
+        .def_readonly("input_state", &BattleContext::inputState)
+        .def_readonly("turn", &BattleContext::turn)
+        .def_property_readonly("player_hp", [](const BattleContext &b) { return b.player.curHp; })
+        .def_property_readonly("player_max_hp", [](const BattleContext &b) { return b.player.maxHp; })
+        .def_property_readonly("player_energy", [](const BattleContext &b) { return b.player.energy; })
+        .def_property_readonly("monster_count", [](const BattleContext &b) { return b.monsters.monsterCount; })
+        .def("monster_hp",
+             [](const BattleContext &b, int idx) { return b.monsters.arr[idx].curHp; })
+        .def("monster_max_hp",
+             [](const BattleContext &b, int idx) { return b.monsters.arr[idx].maxHp; })
+        .def("monster_alive",
+             [](const BattleContext &b, int idx) { return b.monsters.arr[idx].isTargetable(); })
+        .def_property_readonly("cards_in_hand",
+             [](const BattleContext &b) { return b.cards.cardsInHand; })
+        .def("hand_card_id",
+             [](const BattleContext &b, int idx) { return b.cards.hand[idx].getId(); })
+        .def("hand_card_cost",
+             [](const BattleContext &b, int idx) { return (int)b.cards.hand[idx].costForTurn; })
+        .def("hand_card_upgraded",
+             [](const BattleContext &b, int idx) { return b.cards.hand[idx].isUpgraded(); })
+        .def("hand_ids",
+             [](const BattleContext &b) {
+                 std::vector<int> ids;
+                 ids.reserve(10);
+                 for (int i = 0; i < 10; ++i) {
+                     if (i < b.cards.cardsInHand) {
+                         ids.push_back(static_cast<int>(b.cards.hand[i].getId()));
+                     } else {
+                         ids.push_back(static_cast<int>(CardId::INVALID));
+                     }
+                 }
+                 return ids;
+             },
+             "returns a length-10 list of card ids in hand; empty slots are CardId::INVALID (=0)");
 
     pybind11::enum_<GameOutcome> gameOutcome(m, "GameOutcome");
     gameOutcome.value("UNDECIDED", GameOutcome::UNDECIDED)
