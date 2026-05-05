@@ -62,7 +62,8 @@ class StsEnv:
         seed = random.randint(0, 2**15 - 1)
         self.gc = s.GameContext(self.character, seed, self.ascension)
         self.bc = s.BattleContext()
-        self.bc.init_with_encounter(self.gc, s.MonsterEncounter.CULTIST)
+        if self.
+        #self.bc.init_with_encounter(self.gc, s.MonsterEncounter.CULTIST)
         return self._obs()
 
     def step(self, action_idx):
@@ -128,12 +129,4 @@ class StsEnv:
         raise ValueError(type)
 
     def legal_mask(self):
-        mask = np.zeros(self.N_ACTIONS, dtype=np.float32)
-        for idx in range(self.N_ACTIONS):
-            t, i, j = self._decode_to_args(idx)
-            if self.bc.is_valid_action(t, i, j):
-                mask[idx] = 1.0
-        if mask.sum() == 0:
-            # safety: never let mask be all-zero (would NaN softmax)
-            mask[0] = 1.0  # fallback to END_TURN
-        return mask
+        return np.asarray(self.bc.legal_mask(), dtype=np.float32)

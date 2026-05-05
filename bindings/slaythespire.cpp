@@ -3,6 +3,7 @@
 //
 
 #include <pybind11/pybind11.h>
+#include <pybind11/numpy.h>
 #include <pybind11/stl.h>
 #include <pybind11/stl_bind.h>
 #include <pybind11/functional.h>
@@ -186,6 +187,43 @@ PYBIND11_MODULE(slaythespire, m) {
                  return sts::search::Action(type, idx1, idx2).isValidAction(b);
              },
              "check whether the given action is legal in the current state")
+        .def("legal_mask",
+             [](const BattleContext &b) {
+                 constexpr int actionCount = 101;
+                 pybind11::array_t<float> mask(actionCount);
+                 auto m = mask.mutable_unchecked<1>();
+
+                 for (int idx = 0; idx < actionCount; ++idx) {
+                     sts::search::Action action;
+                     if (idx == 0) {
+                         action = sts::search::Action(sts::search::ActionType::END_TURN, 0, 0);
+                     } else if (idx < 51) {
+                         const int k = idx - 1;
+                         action = sts::search::Action(sts::search::ActionType::CARD, k / 5, k % 5);
+                     } else if (idx < 61) {
+                         action = sts::search::Action(sts::search::ActionType::CARD, idx - 51, 0);
+                     } else if (idx < 86) {
+                         const int k = idx - 61;
+                         action = sts::search::Action(sts::search::ActionType::POTION, k / 5, k % 5);
+                     } else if (idx < 91) {
+                         action = sts::search::Action(sts::search::ActionType::POTION, idx - 86, 0);
+                     } else {
+                         action = sts::search::Action(sts::search::ActionType::SINGLE_CARD_SELECT, idx - 91, 0);
+                     }
+                     m(idx) = action.isValidAction(b) ? 1.0F : 0.0F;
+                 }
+
+                 float legalCount = 0.0F;
+                 for (int idx = 0; idx < actionCount; ++idx) {
+                     legalCount += m(idx);
+                 }
+                 if (legalCount == 0.0F) {
+                     m(0) = 1.0F;
+                 }
+
+                 return mask;
+             },
+             "returns a length-101 float32 mask for the Python RL action encoding")
         .def_readonly("outcome", &BattleContext::outcome)
         .def_readonly("input_state", &BattleContext::inputState)
         .def_readonly("turn", &BattleContext::turn)
@@ -913,5 +951,4 @@ PYBIND11_MODULE(slaythespire, m) {
 }
 
 // os.add_dll_directory("C:\\Program Files\\mingw-w64\\x86_64-8.1.0-posix-seh-rt_v6-rev0\\mingw64\\bin")
-
 
